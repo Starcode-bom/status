@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0e13">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Aktueller Systemstatus der Starcode-Dienste.">
+  <title>Starcode Status</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230b0e13'/%3E%3Cpath d='M18 20h28M18 32h18M18 44h28' stroke='%236ee7b7' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #0b0e13;
+      --bg-deep: #07090d;
+      --surface: #11151c;
+      --surface-2: #161b24;
+      --surface-hover: #1a202b;
+      --line: rgba(255,255,255,.09);
+      --line-strong: rgba(255,255,255,.15);
+      --text: #f5f7fa;
+      --muted: #929baa;
+      --muted-2: #6f7887;
+      --ok: #49d69b;
+      --outage: #ff5c68;
+      --maintenance: #6ba7ff;
+      --degraded: #ffb84d;
+      --unknown: #a98cf5;
+      --unavailable: #8992a2;
+      --radius: 18px;
+      --shadow: 0 24px 70px rgba(0,0,0,.32);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      min-width: 300px;
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% -8%, rgba(78, 126, 255, .12), transparent 31rem),
+        radial-gradient(circle at 88% 18%, rgba(73, 214, 155, .07), transparent 28rem),
+        var(--bg-deep);
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      opacity: .25;
+      background-image:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(to bottom, black, transparent 70%);
+    }
+
+    button { font: inherit; }
+
+    .shell {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7,9,13,.78);
+      backdrop-filter: blur(18px) saturate(130%);
+    }
+
+    .topbar-inner {
+      min-height: 74px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: inherit;
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(110,231,183,.24);
+      border-radius: 10px;
+      color: var(--ok);
+      background: linear-gradient(145deg, rgba(73,214,155,.13), rgba(73,214,155,.025));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+    }
+
+    .brand-mark svg { width: 19px; height: 19px; }
+    .brand span:last-child { color: var(--muted); font-weight: 500; }
+
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+
+    .language-switch {
+      display: flex;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(255,255,255,.025);
+    }
+
+    .language-switch button {
+      min-width: 42px;
+      height: 32px;
+      border: 0;
+      border-radius: 8px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      transition: color .2s ease, background .2s ease, box-shadow .2s ease;
+    }
+
+    .language-switch button:hover { color: var(--text); }
+    .language-switch button[aria-pressed="true"] {
+      color: var(--text);
+      background: var(--surface-2);
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+
+    .refresh-button {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      color: var(--muted);
+      background: rgba(255,255,255,.025);
+      cursor: pointer;
+      transition: color .2s ease, border-color .2s ease, background .2s ease;
+    }
+
+    .refresh-button:hover {
+      color: var(--text);
+      border-color: var(--line-strong);
+      background: var(--surface-2);
+    }
+
+    .refresh-button:focus-visible,
+    .language-switch button:focus-visible {
+      outline: 3px solid rgba(107,167,255,.35);
+      outline-offset: 2px;
+    }
+
+    .refresh-button svg { width: 18px; height: 18px; }
+    .refresh-button.is-loading svg { animation: spin .8s linear infinite; }
+
+    main { padding: 72px 0 48px; }
+
+    .intro {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 32px;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 760px;
+      font-size: clamp(2.35rem, 7vw, 4.65rem);
+      line-height: .98;
+      letter-spacing: -.065em;
+      font-weight: 720;
+    }
+
+    .intro-copy {
+      max-width: 610px;
+      margin: 20px 0 0;
+      color: var(--muted);
+      font-size: 1.02rem;
+    }
+
+    .live-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255,255,255,.025);
+      font-size: .82rem;
+      white-space: nowrap;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 0 5px rgba(73,214,155,.1);
+      animation: livePulse 2.2s ease-in-out infinite;
+    }
+
+    .overview {
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 30px;
+      min-height: 154px;
+      padding: 28px 30px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: linear-gradient(120deg, rgba(73,214,155,.1), rgba(17,21,28,.94) 42%, rgba(17,21,28,.97));
+      box-shadow: var(--shadow);
+      isolation: isolate;
+      transition: background .35s ease, border-color .35s ease;
+    }
+
+    .overview::after {
+      content: "";
+      position: absolute;
+      right: -45px;
+      top: -85px;
+      z-index: -1;
+      width: 260px;
+      height: 260px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 50%;
+      box-shadow: 0 0 0 38px rgba(255,255,255,.018), 0 0 0 78px rgba(255,255,255,.012);
+    }
+
+    .overview[data-status="outage"] { background: linear-gradient(120deg, rgba(255,92,104,.12), rgba(17,21,28,.96) 45%); }
+    .overview[data-status="maintenance"] { background: linear-gradient(120deg, rgba(107,167,255,.12), rgba(17,21,28,.96) 45%); }
+    .overview[data-status="degraded"] { background: linear-gradient(120deg, rgba(255,184,77,.12), rgba(17,21,28,.96) 45%); }
+    .overview[data-status="unknown"] { background: linear-gradient(120deg, rgba(169,140,245,.12), rgba(17,21,28,.96) 45%); }
+    .overview[data-status="unavailable"] { background: linear-gradient(120deg, rgba(137,146,162,.12), rgba(17,21,28,.96) 45%); }
+
+    .overview-main { display: flex; align-items: center; gap: 18px; min-width: 0; }
+
+    .overview-icon {
+      flex: 0 0 auto;
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border: 1px solid color-mix(in srgb, var(--state-color) 30%, transparent);
+      border-radius: 16px;
+      color: var(--state-color);
+      background: color-mix(in srgb, var(--state-color) 12%, transparent);
+    }
+
+    .overview-icon svg { width: 27px; height: 27px; }
+    .overview-label { margin: 0 0 3px; color: var(--muted); font-size: .85rem; }
+    .overview-title { margin: 0; font-size: clamp(1.22rem, 3vw, 1.75rem); letter-spacing: -.025em; }
+    .overview-detail { margin: 5px 0 0; color: var(--muted); font-size: .9rem; }
+
+    .summary-counts {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      gap: 8px;
+    }
+
+    .count-card {
+      min-width: 84px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(7,9,13,.4);
+      text-align: center;
+    }
+
+    .count-card strong { display: block; font-size: 1.25rem; line-height: 1.2; }
+    .count-card span { color: var(--muted); font-size: .72rem; }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin: 46px 0 16px;
+    }
+
+    .section-head h2 { margin: 0; font-size: 1.18rem; letter-spacing: -.02em; }
+    .sync-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px 18px; color: var(--muted); font-size: .8rem; }
+    .sync-meta span { display: inline-flex; align-items: center; gap: 7px; }
+    .sync-meta svg { width: 14px; height: 14px; }
+
+    .service-list {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(17,21,28,.84);
+      box-shadow: 0 18px 50px rgba(0,0,0,.18);
+    }
+
+    .service-row {
+      --state-color: var(--unknown);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 22px;
+      min-height: 92px;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--line);
+      transition: background .2s ease;
+      animation: rowIn .45s cubic-bezier(.2,.8,.2,1) both;
+      animation-delay: calc(var(--index) * 55ms);
+    }
+
+    .service-row:last-child { border-bottom: 0; }
+    .service-row:hover { background: var(--surface-hover); }
+
+    .service-main { min-width: 0; display: flex; align-items: center; gap: 15px; }
+
+    .type-icon {
+      flex: 0 0 auto;
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: #bec6d2;
+      background: rgba(255,255,255,.025);
+    }
+
+    .type-icon svg { width: 20px; height: 20px; }
+    .service-copy { min-width: 0; }
+    .service-name { margin: 0; font-size: 1rem; font-weight: 650; letter-spacing: -.01em; }
+    .service-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 9px; margin-top: 3px; color: var(--muted); font-size: .82rem; }
+    .service-type { color: #b7c0cd; }
+    .meta-separator { width: 3px; height: 3px; border-radius: 50%; background: var(--muted-2); }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 11px;
+      border: 1px solid color-mix(in srgb, var(--state-color) 24%, transparent);
+      border-radius: 999px;
+      color: color-mix(in srgb, var(--state-color) 82%, white);
+      background: color-mix(in srgb, var(--state-color) 9%, transparent);
+      font-size: .79rem;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .status-badge::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--state-color);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--state-color) 11%, transparent);
+    }
+
+    [data-status="ok"] { --state-color: var(--ok); }
+    [data-status="outage"] { --state-color: var(--outage); }
+    [data-status="maintenance"] { --state-color: var(--maintenance); }
+    [data-status="degraded"] { --state-color: var(--degraded); }
+    [data-status="unknown"] { --state-color: var(--unknown); }
+    [data-status="unavailable"] { --state-color: var(--unavailable); }
+
+    .loading-row {
+      display: grid;
+      grid-template-columns: 42px 1fr 115px;
+      align-items: center;
+      gap: 15px;
+      min-height: 92px;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .loading-row:last-child { border-bottom: 0; }
+    .skeleton { overflow: hidden; position: relative; border-radius: 8px; background: rgba(255,255,255,.055); }
+    .skeleton::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.07), transparent); animation: shimmer 1.4s infinite; }
+    .skeleton-icon { width: 42px; height: 42px; border-radius: 12px; }
+    .skeleton-lines { display: grid; gap: 9px; }
+    .skeleton-line { height: 12px; width: min(230px, 80%); }
+    .skeleton-line.short { width: min(150px, 56%); height: 9px; }
+    .skeleton-badge { height: 32px; width: 115px; border-radius: 999px; }
+
+    .message-state {
+      padding: 52px 24px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .message-state svg { width: 34px; height: 34px; margin-bottom: 12px; color: var(--unknown); }
+    .message-state strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 1rem; }
+    .message-state p { max-width: 520px; margin: 0 auto; font-size: .88rem; }
+
+    .notice {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255,184,77,.2);
+      border-radius: 12px;
+      color: #d6b985;
+      background: rgba(255,184,77,.06);
+      font-size: .82rem;
+    }
+
+    .notice.is-visible { display: flex; }
+    .notice svg { flex: 0 0 auto; width: 17px; height: 17px; }
+
+    footer {
+      border-top: 1px solid var(--line);
+      margin-top: 72px;
+    }
+
+    .footer-inner {
+      min-height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      color: var(--muted-2);
+      font-size: .8rem;
+    }
+
+    .footer-source { display: inline-flex; align-items: center; gap: 7px; }
+    .footer-source svg { width: 14px; height: 14px; }
+
+    @keyframes livePulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(.85); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes rowIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes shimmer { to { transform: translateX(100%); } }
+
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 28px, 1120px); }
+      .topbar-inner { min-height: 66px; }
+      .brand span:last-child { display: none; }
+      main { padding-top: 50px; }
+      .intro { grid-template-columns: 1fr; align-items: start; gap: 20px; }
+      .live-chip { justify-self: start; }
+      .overview { grid-template-columns: 1fr; padding: 24px 20px; }
+      .summary-counts { width: 100%; }
+      .count-card { min-width: 0; flex: 1; }
+      .section-head { align-items: start; flex-direction: column; gap: 8px; }
+      .sync-meta { justify-content: flex-start; }
+      .service-row { grid-template-columns: 1fr; gap: 13px; padding: 19px 18px; }
+      .status-badge { justify-self: start; margin-left: 57px; }
+      .footer-inner { align-items: flex-start; flex-direction: column; justify-content: center; padding: 28px 0; }
+    }
+
+    @media (max-width: 430px) {
+      .shell { width: min(100% - 22px, 1120px); }
+      .top-actions { gap: 7px; }
+      .language-switch button { min-width: 37px; }
+      .overview-main { align-items: flex-start; }
+      .overview-icon { width: 46px; height: 46px; border-radius: 14px; }
+      .summary-counts { display: grid; grid-template-columns: 1fr 1fr; }
+      .sync-meta { display: grid; }
+      .service-main { align-items: flex-start; }
+      .status-badge { margin-left: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="#top" aria-label="Starcode Status">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 6h14M5 12h9M5 18h14" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></svg>
+        </span>
+        <strong>Starcode</strong><span>Status</span>
+      </a>
+      <div class="top-actions">
+        <div class="language-switch" role="group" aria-label="Sprache wählen">
+          <button type="button" data-language="de" aria-pressed="true">DE</button>
+          <button type="button" data-language="en" aria-pressed="false">EN</button>
+        </div>
+        <button class="refresh-button" type="button" id="refreshButton" aria-label="Status aktualisieren" title="Status aktualisieren">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <div class="shell">
+      <section class="intro" aria-labelledby="pageTitle">
+        <div>
+          <p class="eyebrow" data-i18n="eyebrow">Systemstatus</p>
+          <h1 id="pageTitle" data-i18n="title">Alles auf einen Blick.</h1>
+          <p class="intro-copy" data-i18n="intro">Live-Informationen zur Verfügbarkeit der Starcode-Dienste und Infrastruktur.</p>
+        </div>
+        <div class="live-chip"><span class="live-dot"></span><span data-i18n="live">Live synchronisiert</span></div>
+      </section>
+
+      <section class="overview" id="overview" data-status="unknown" aria-live="polite">
+        <div class="overview-main">
+          <div class="overview-icon" id="overviewIcon" aria-hidden="true"></div>
+          <div>
+            <p class="overview-label" data-i18n="overall">Gesamtstatus</p>
+            <h2 class="overview-title" id="overviewTitle" data-i18n="loading">Status wird geladen</h2>
+            <p class="overview-detail" id="overviewDetail" data-i18n="loadingDetail">Die aktuellen Daten werden abgerufen.</p>
+          </div>
+        </div>
+        <div class="summary-counts" aria-label="Zusammenfassung">
+          <div class="count-card"><strong id="countTotal">—</strong><span data-i18n="services">Dienste</span></div>
+          <div class="count-card"><strong id="countOk">—</strong><span data-i18n="available">Verfügbar</span></div>
+          <div class="count-card"><strong id="countIssues">—</strong><span data-i18n="issues">Hinweise</span></div>
+        </div>
+      </section>
+
+      <section aria-labelledby="servicesTitle">
+        <div class="section-head">
+          <h2 id="servicesTitle" data-i18n="servicesHeading">Dienste und Infrastruktur</h2>
+          <div class="sync-meta">
+            <span>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span><span data-i18n="updated">Aktualisiert</span>: <time id="lastUpdated">—</time></span>
+            </span>
+            <span>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span><span data-i18n="nextSync">Nächste Synchronisierung</span>: <strong id="countdown">60 s</strong></span>
+            </span>
+          </div>
+        </div>
+
+        <div class="service-list" id="serviceList" aria-live="polite" aria-busy="true">
+          <div class="loading-row"><div class="skeleton skeleton-icon"></div><div class="skeleton-lines"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></div><div class="skeleton skeleton-badge"></div></div>
+          <div class="loading-row"><div class="skeleton skeleton-icon"></div><div class="skeleton-lines"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></div><div class="skeleton skeleton-badge"></div></div>
+          <div class="loading-row"><div class="skeleton skeleton-icon"></div><div class="skeleton-lines"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></div><div class="skeleton skeleton-badge"></div></div>
+        </div>
+        <div class="notice" id="offlineNotice" role="status">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v4m0 4h.01M10.3 4.9 3.2 17.2A1.2 1.2 0 0 0 4.24 19h15.52a1.2 1.2 0 0 0 1.04-1.8L13.7 4.9a1.96 1.96 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span id="offlineText" data-i18n="fallback">Die Live-Datei war nicht erreichbar. Es werden lokale Beispieldaten angezeigt.</span>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <span>© <span id="copyrightYear"></span> Starcode AI. <span data-i18n="rights">Alle Rechte vorbehalten.</span></span>
+      <span class="footer-source">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7.5h16M7 4v3.5m10-3.5v3.5M6 11.5h4m4 0h4M6 15.5h4m4 0h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><rect x="3.5" y="5.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.7"/></svg>
+        <span data-i18n="interval">Automatische Aktualisierung jede Minute</span>
+      </span>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const REMOTE_URL = 'https://raw.githubusercontent.com/Starcode-AI/status/refs/heads/main/data/status.json';
+      const REFRESH_INTERVAL = 60;
+
+      const translations = {
+        de: {
+          eyebrow: 'Systemstatus', title: 'Alles auf einen Blick.', intro: 'Live-Informationen zur Verfügbarkeit der Starcode-Dienste und Infrastruktur.',
+          live: 'Live synchronisiert', overall: 'Gesamtstatus', loading: 'Status wird geladen', loadingDetail: 'Die aktuellen Daten werden abgerufen.',
+          services: 'Dienste', available: 'Verfügbar', issues: 'Hinweise', servicesHeading: 'Dienste und Infrastruktur', updated: 'Aktualisiert',
+          nextSync: 'Nächste Synchronisierung', fallback: 'Die Live-Datei war nicht erreichbar. Es werden lokale Beispieldaten angezeigt.',
+          cached: 'Die Live-Datei war kurzzeitig nicht erreichbar. Der zuletzt bekannte Stand bleibt sichtbar.',
+          rights: 'Alle Rechte vorbehalten.', interval: 'Automatische Aktualisierung jede Minute', refresh: 'Status aktualisieren',
+          noServices: 'Keine Dienste gefunden', noServicesDetail: 'Die JSON-Datei enthält aktuell keine erkennbaren Diensteinträge.',
+          statusError: 'Status nicht erreichbar', statusErrorDetail: 'Die Statusdaten konnten gerade nicht geladen werden.',
+          overall_ok: 'Alle Systeme betriebsbereit', overall_ok_detail: 'Alle {count} Dienste funktionieren wie erwartet.',
+          overall_outage: 'Ausfall erkannt', overall_outage_detail: '{count} Dienst(e) sind von einem Ausfall betroffen.',
+          overall_maintenance: 'Wartungsarbeiten aktiv', overall_maintenance_detail: 'Mindestens ein Dienst wird gerade gewartet.',
+          overall_degraded: 'Teilweise Störung', overall_degraded_detail: 'Einige Dienste sind nur eingeschränkt verfügbar.',
+          overall_unknown: 'Status teilweise unbekannt', overall_unknown_detail: 'Für mindestens einen Dienst fehlen aktuelle Informationen.',
+          overall_unavailable: 'Dienste nicht verfügbar', overall_unavailable_detail: 'Mindestens ein Dienst kann derzeit nicht erreicht werden.',
+          ok: 'In Ordnung', outage: 'Ausfall', maintenance: 'Wartung', degraded: 'Störung', unknown: 'Nicht bekannt', unavailable: 'Nicht verfügbar',
+          type_website: 'Website', type_api: 'API', type_server: 'Server', type_cloudflare: 'Cloudflare', type_database: 'Datenbank',
+          type_storage: 'Speicher', type_network: 'Netzwerk', type_service: 'Dienst'
+        },
+        en: {
+          eyebrow: 'System status', title: 'Everything at a glance.', intro: 'Live availability information for Starcode services and infrastructure.',
+          live: 'Live synchronised', overall: 'Overall status', loading: 'Loading status', loadingDetail: 'Retrieving the latest data.',
+          services: 'Services', available: 'Operational', issues: 'Notices', servicesHeading: 'Services and infrastructure', updated: 'Updated',
+          nextSync: 'Next synchronisation', fallback: 'The live file could not be reached. Local sample data is being shown.',
+          cached: 'The live file was temporarily unavailable. The last known status remains visible.',
+          rights: 'All rights reserved.', interval: 'Automatically refreshed every minute', refresh: 'Refresh status',
+          noServices: 'No services found', noServicesDetail: 'The JSON file currently contains no recognisable service entries.',
+          statusError: 'Status unavailable', statusErrorDetail: 'The status data could not be loaded right now.',
+          overall_ok: 'All systems operational', overall_ok_detail: 'All {count} services are working as expected.',
+          overall_outage: 'Outage detected', overall_outage_detail: '{count} service(s) are affected by an outage.',
+          overall_maintenance: 'Maintenance in progress', overall_maintenance_detail: 'At least one service is currently under maintenance.',
+          overall_degraded: 'Partial disruption', overall_degraded_detail: 'Some services are operating with reduced availability.',
+          overall_unknown: 'Status partially unknown', overall_unknown_detail: 'Current information is missing for at least one service.',
+          overall_unavailable: 'Services unavailable', overall_unavailable_detail: 'At least one service cannot currently be reached.',
+          ok: 'Operational', outage: 'Outage', maintenance: 'Maintenance', degraded: 'Degraded', unknown: 'Unknown', unavailable: 'Unavailable',
+          type_website: 'Website', type_api: 'API', type_server: 'Server', type_cloudflare: 'Cloudflare', type_database: 'Database',
+          type_storage: 'Storage', type_network: 'Network', type_service: 'Service'
+        }
+      };
+
+      const embeddedFallback = {
+        updatedAt: new Date().toISOString(),
+        services: [
+          { name: { de: 'Hauptwebsite', en: 'Main website' }, type: 'Website', status: 'nicht bekannt', description: { de: 'Keine Live-Daten verfügbar.', en: 'No live data available.' } },
+          { name: 'Starcode API', type: 'API', status: 'nicht bekannt' },
+          { name: 'Cloudflare Edge', type: 'Cloudflare', status: 'nicht bekannt' }
+        ]
+      };
+
+      const icons = {
+        check: '<svg viewBox="0 0 24 24" fill="none"><path d="m6.5 12.5 3.3 3.3 7.7-8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+        warning: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 8v4m0 4h.01M10.3 4.9 3.2 17.2A1.2 1.2 0 0 0 4.24 19h15.52a1.2 1.2 0 0 0 1.04-1.8L13.7 4.9a1.96 1.96 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>',
+        maintenance: '<svg viewBox="0 0 24 24" fill="none"><path d="m14.7 6.2 3.1-3.1a5 5 0 0 1-6.5 6.5l-6.8 6.8a2.2 2.2 0 0 0 3.1 3.1l6.8-6.8a5 5 0 0 0 6.5-6.5l-3.1 3.1-3.1-3.1Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+        unknown: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M9.7 9a2.4 2.4 0 1 1 3.55 2.1c-.8.45-1.25.9-1.25 1.9m0 3h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+        website: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 12h17M12 3c2.2 2.45 3.25 5.45 3.25 9S14.2 18.55 12 21c-2.2-2.45-3.25-5.45-3.25-9S9.8 5.45 12 3Z" stroke="currentColor" stroke-width="1.7"/></svg>',
+        api: '<svg viewBox="0 0 24 24" fill="none"><path d="m8 8-4 4 4 4m8-8 4 4-4 4m-5.5 3 3-14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+        server: '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="14" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8 7h.01M8 17h.01M12 7h5M12 17h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+        cloudflare: '<svg viewBox="0 0 24 24" fill="none"><path d="M7.2 17.5h10.9a3.4 3.4 0 0 0 .4-6.78A6.5 6.5 0 0 0 6 9.5a4 4 0 0 0 1.2 8Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+        database: '<svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="6" rx="7.5" ry="3" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 6v6c0 1.65 3.36 3 7.5 3s7.5-1.35 7.5-3V6m-15 6v6c0 1.65 3.36 3 7.5 3s7.5-1.35 7.5-3v-6" stroke="currentColor" stroke-width="1.7"/></svg>',
+        storage: '<svg viewBox="0 0 24 24" fill="none"><path d="M5 7.5A2.5 2.5 0 0 1 7.5 5h9A2.5 2.5 0 0 1 19 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 16.5v-9Z" stroke="currentColor" stroke-width="1.7"/><path d="M8 9h8m-8 3h8m-8 3h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+        network: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 9a12 12 0 0 1 16 0M7 12.5a7.5 7.5 0 0 1 10 0M10.2 16a2.8 2.8 0 0 1 3.6 0M12 19h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+        service: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5 19.5 8v8L12 20.5 4.5 16V8L12 3.5Z" stroke="currentColor" stroke-width="1.7"/><path d="m4.8 8.2 7.2 4.3 7.2-4.3M12 12.5v8" stroke="currentColor" stroke-width="1.7"/></svg>'
+      };
+
+      const els = {
+        list: document.getElementById('serviceList'), overview: document.getElementById('overview'), overviewIcon: document.getElementById('overviewIcon'),
+        overviewTitle: document.getElementById('overviewTitle'), overviewDetail: document.getElementById('overviewDetail'),
+        countTotal: document.getElementById('countTotal'), countOk: document.getElementById('countOk'), countIssues: document.getElementById('countIssues'),
+        lastUpdated: document.getElementById('lastUpdated'), countdown: document.getElementById('countdown'), refresh: document.getElementById('refreshButton'),
+        notice: document.getElementById('offlineNotice'), noticeText: document.getElementById('offlineText')
+      };
+
+      let language = (navigator.language || 'de').toLowerCase().startsWith('de') ? 'de' : 'en';
+      let currentData = null;
+      let secondsLeft = REFRESH_INTERVAL;
+      let isLoading = false;
+      let hasLiveData = false;
+
+      function t(key, vars = {}) {
+        let value = translations[language][key] || translations.de[key] || key;
+        Object.entries(vars).forEach(([name, replacement]) => { value = value.replaceAll('{' + name + '}', String(replacement)); });
+        return value;
+      }
+
+      function localised(value, fallback = '') {
+        if (value == null) return fallback;
+        if (typeof value === 'object' && !Array.isArray(value)) return String(value[language] ?? value.de ?? value.en ?? fallback);
+        return String(value);
+      }
+
+      function clean(value) {
+        return String(value ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[_-]+/g, ' ');
+      }
+
+      function normaliseStatus(value) {
+        const s = clean(value);
+        if (['in ordnung', 'inordnung', 'in ortnung', 'inortnung', 'ok', 'operational', 'online', 'up', 'available', 'verfugbar', 'healthy'].includes(s)) return 'ok';
+        if (['ausfall', 'outage', 'major outage', 'down', 'offline', 'failed', 'failure'].includes(s)) return 'outage';
+        if (['wartung', 'maintenance', 'scheduled maintenance', 'maintainance'].includes(s)) return 'maintenance';
+        if (['storung', 'degraded', 'degraded performance', 'partial outage', 'disruption', 'incident', 'eingeschrankt'].includes(s)) return 'degraded';
+        if (['nicht verfugbar', 'unavailable', 'not available', 'disabled'].includes(s)) return 'unavailable';
+        return 'unknown';
+      }
+
+      function normaliseType(value) {
+        const type = clean(value);
+        if (type.includes('web') || type.includes('seite')) return 'website';
+        if (type.includes('api') || type.includes('schnittstelle')) return 'api';
+        if (type.includes('cloudflare') || type.includes('cdn') || type.includes('edge')) return 'cloudflare';
+        if (type.includes('datenbank') || type.includes('database') || type === 'db') return 'database';
+        if (type.includes('storage') || type.includes('speicher') || type.includes('datei')) return 'storage';
+        if (type.includes('network') || type.includes('netzwerk') || type.includes('dns')) return 'network';
+        if (type.includes('server') || type.includes('host')) return 'server';
+        return 'service';
+      }
+
+      function extractServices(data) {
+        if (Array.isArray(data)) return data;
+        const candidates = [data.services, data.components, data.systems, data.statuses, data.items, data.data];
+        const direct = candidates.find(Array.isArray);
+        if (direct) return direct;
+        if (data.data && typeof data.data === 'object') {
+          const nested = [data.data.services, data.data.components, data.data.items].find(Array.isArray);
+          if (nested) return nested;
+        }
+        const ignored = new Set(['page', 'meta', 'status', 'overall', 'updatedAt', 'updated_at', 'lastUpdated', 'timestamp']);
+        const objectEntries = Object.entries(data).filter(([key, value]) => !ignored.has(key) && value && typeof value === 'object' && !Array.isArray(value));
+        if (objectEntries.length) return objectEntries.map(([key, value]) => ({ name: value.name || key, ...value }));
+        return [];
+      }
+
+      function normaliseData(data) {
+        const rawServices = extractServices(data || {});
+        const services = rawServices.map((item, index) => {
+          const source = typeof item === 'string' ? { name: item } : (item || {});
+          return {
+            id: String(source.id ?? source.slug ?? index),
+            name: source.name ?? source.title ?? source.service ?? source.component ?? ('Service ' + (index + 1)),
+            type: source.type ?? source.art ?? source.was ?? source.category ?? source.kategorie ?? source.kind ?? source.group ?? 'Service',
+            status: normaliseStatus(source.status ?? source.state ?? source.condition ?? source.operational),
+            description: source.description ?? source.message ?? source.detail ?? source.note ?? '',
+            updatedAt: source.updatedAt ?? source.updated_at ?? source.lastUpdated ?? source.timestamp ?? null
+          };
+        });
+        return {
+          services,
+          updatedAt: data?.updatedAt ?? data?.updated_at ?? data?.lastUpdated ?? data?.timestamp ?? data?.meta?.updatedAt ?? new Date().toISOString()
+        };
+      }
+
+      function typeLabel(type) {
+        const key = normaliseType(type);
+        const original = localised(type, t('type_service'));
+        if (key === 'service' && clean(original) !== 'service' && clean(original) !== 'dienst') return original;
+        return t('type_' + key);
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+      }
+
+      function overallStatus(services) {
+        const priority = ['outage', 'unavailable', 'degraded', 'maintenance', 'unknown', 'ok'];
+        return priority.find(status => services.some(service => service.status === status)) || 'unknown';
+      }
+
+      function formatDate(value) {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '—';
+        return new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-GB', {
+          day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
+        }).format(date);
+      }
+
+      function render() {
+        if (!currentData) return;
+        const services = currentData.services;
+        els.list.setAttribute('aria-busy', 'false');
+
+        if (!services.length) {
+          els.list.innerHTML = '<div class="message-state">' + icons.unknown + '<strong>' + escapeHtml(t('noServices')) + '</strong><p>' + escapeHtml(t('noServicesDetail')) + '</p></div>';
+        } else {
+          els.list.innerHTML = services.map((service, index) => {
+            const typeKey = normaliseType(service.type);
+            const description = localised(service.description);
+            return '<article class="service-row" data-status="' + service.status + '" style="--index:' + index + '">' +
+              '<div class="service-main"><div class="type-icon" aria-hidden="true">' + icons[typeKey] + '</div><div class="service-copy">' +
+              '<h3 class="service-name">' + escapeHtml(localised(service.name, 'Service')) + '</h3>' +
+              '<div class="service-meta"><span class="service-type">' + escapeHtml(typeLabel(service.type)) + '</span>' +
+              (description ? '<span class="meta-separator"></span><span>' + escapeHtml(description) + '</span>' : '') + '</div></div></div>' +
+              '<span class="status-badge">' + escapeHtml(t(service.status)) + '</span></article>';
+          }).join('');
+        }
+
+        const overall = overallStatus(services);
+        const okCount = services.filter(service => service.status === 'ok').length;
+        const issueCount = services.length - okCount;
+        const outageCount = services.filter(service => service.status === 'outage').length;
+        const detailCount = overall === 'outage' ? outageCount : services.length;
+
+        els.overview.dataset.status = overall;
+        els.overviewIcon.innerHTML = overall === 'ok' ? icons.check : overall === 'maintenance' ? icons.maintenance : overall === 'unknown' ? icons.unknown : icons.warning;
+        els.overviewTitle.textContent = t('overall_' + overall);
+        els.overviewDetail.textContent = t('overall_' + overall + '_detail', { count: detailCount });
+        els.countTotal.textContent = services.length;
+        els.countOk.textContent = okCount;
+        els.countIssues.textContent = issueCount;
+        els.lastUpdated.textContent = formatDate(currentData.updatedAt);
+        els.lastUpdated.dateTime = currentData.updatedAt;
+      }
+
+      function applyLanguage(nextLanguage) {
+        language = nextLanguage === 'en' ? 'en' : 'de';
+        document.documentElement.lang = language;
+        document.title = language === 'de' ? 'Starcode Status – Systemstatus' : 'Starcode Status – System Status';
+        document.querySelector('meta[name="description"]').content = translations[language].intro;
+        document.querySelectorAll('[data-i18n]').forEach(element => { element.textContent = t(element.dataset.i18n); });
+        document.querySelectorAll('[data-language]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.language === language)));
+        document.querySelector('.language-switch').setAttribute('aria-label', language === 'de' ? 'Sprache wählen' : 'Choose language');
+        els.refresh.setAttribute('aria-label', t('refresh'));
+        els.refresh.title = t('refresh');
+        if (currentData) render();
+      }
+
+      async function fetchJson(url, timeoutMs = 9000) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const separator = url.includes('?') ? '&' : '?';
+          const response = await fetch(url + separator + 't=' + Date.now(), { cache: 'no-store', signal: controller.signal, headers: { Accept: 'application/json' } });
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return await response.json();
+        } finally { clearTimeout(timeout); }
+      }
+
+      async function loadStatus(manual = false) {
+        if (isLoading) return;
+        isLoading = true;
+        els.refresh.classList.add('is-loading');
+        els.refresh.disabled = true;
+        secondsLeft = REFRESH_INTERVAL;
+        try {
+          const live = await fetchJson(REMOTE_URL);
+          currentData = normaliseData(live);
+          hasLiveData = true;
+          els.notice.classList.remove('is-visible');
+        } catch (liveError) {
+          if (!hasLiveData && location.protocol !== 'file:') {
+            try {
+              currentData = normaliseData(await fetchJson('./status.json', 4000));
+            } catch (localError) {
+              currentData = normaliseData(embeddedFallback);
+            }
+            els.noticeText.textContent = t('fallback');
+            els.notice.classList.add('is-visible');
+          } else if (!hasLiveData) {
+            currentData = normaliseData(embeddedFallback);
+            els.noticeText.textContent = t('fallback');
+            els.notice.classList.add('is-visible');
+          } else {
+            els.noticeText.textContent = t('cached');
+            els.notice.classList.add('is-visible');
+          }
+          if (manual) console.info('Status refresh failed; retaining fallback or cached data.', liveError);
+        } finally {
+          render();
+          isLoading = false;
+          els.refresh.classList.remove('is-loading');
+          els.refresh.disabled = false;
+        }
+      }
+
+      document.querySelectorAll('[data-language]').forEach(button => button.addEventListener('click', () => applyLanguage(button.dataset.language)));
+      els.refresh.addEventListener('click', () => loadStatus(true));
+      document.getElementById('copyrightYear').textContent = new Date().getFullYear();
+
+      setInterval(() => {
+        secondsLeft -= 1;
+        if (secondsLeft <= 0) loadStatus();
+        els.countdown.textContent = Math.max(secondsLeft, 0) + ' s';
+      }, 1000);
+
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && secondsLeft <= 10) loadStatus();
+      });
+
+      applyLanguage(language);
+      loadStatus();
+    })();
+  </script>
+</body>
+</html>
